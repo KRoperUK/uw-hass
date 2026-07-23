@@ -1,0 +1,31 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: sort-manifest
+        name: sort manifest.json
+        entry: python scripts/sort_manifest.py
+        language: system
+        files: ^custom_components/utility_warehouse/manifest\.json$
+        pass_filenames: false
+
+      - id: mypy
+        name: mypy (strict)
+        entry: .venv/bin/mypy
+        language: system
+        pass_filenames: false
+        files: \.py$
+        stages: [pre-commit]
+
+      - id: pytest
+        name: pytest (no-cov)
+        entry: .venv/bin/python -m pytest tests/ --no-cov -q
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

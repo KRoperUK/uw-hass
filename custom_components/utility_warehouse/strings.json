@@ -1,0 +1,45 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Utility Warehouse",
+        "description": "Enter your Utility Warehouse account credentials to access energy usage, bills, and meter readings.",
+        "data": {
+          "email": "Email or account number",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "auth_error": "Authentication failed. Please check your credentials.",
+      "connection_error": "Could not connect to Utility Warehouse. Check your internet connection.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This account is already configured."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "electricity_consumption": { "name": "Electricity consumption" },
+      "electricity_cost": { "name": "Electricity cost" },
+      "gas_consumption": { "name": "Gas consumption" },
+      "gas_cost": { "name": "Gas cost" },
+      "electricity_meter_reading": { "name": "Electricity meter reading" },
+      "gas_meter_reading": { "name": "Gas meter reading" },
+      "last_reading_date": { "name": "Last reading date" },
+      "electricity_meter_number": { "name": "Electricity meter number" },
+      "gas_meter_number": { "name": "Gas meter number" },
+      "tariff_name": { "name": "Energy tariff" },
+      "unit_rate": { "name": "Unit rate" },
+      "standing_charge": { "name": "Standing charge" },
+      "last_bill_amount": { "name": "Last bill amount" },
+      "last_bill_date": { "name": "Last bill date" },
+      "bill_status": { "name": "Bill status" }
+    },
+    "binary_sensor": {
+      "bill_overdue": { "name": "Bill overdue" },
+      "smart_meter": { "name": "Smart meter" }
+    }
+  }
+}
