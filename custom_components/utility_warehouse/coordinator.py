@@ -9,6 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.httpx_client import get_async_client
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -42,7 +43,9 @@ class UWDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _apply_backoff(self) -> None:
         self._current_interval = min(self._current_interval * 2, MAX_SCAN_INTERVAL)
         self.update_interval = timedelta(seconds=self._current_interval)
-        _LOGGER.warning("Backing off to %ss between updates", self._current_interval)
+        _LOGGER.warning(
+            "Backing off to %ss between updates", self._current_interval
+        )
 
     def _reset_backoff(self) -> None:
         if self._current_interval != DEFAULT_SCAN_INTERVAL:
@@ -54,7 +57,9 @@ class UWDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if self.last_update_success:
             return True
         return bool(
-            self.data and time.monotonic() - self._last_success_time < AVAILABILITY_GRACE_SECONDS
+            self.data
+            and time.monotonic() - self._last_success_time
+            < AVAILABILITY_GRACE_SECONDS
         )
 
     async def _async_update_data(self) -> dict[str, Any]:
@@ -63,10 +68,15 @@ class UWDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             email = self._entry.data[CONF_EMAIL]
             password = self._entry.data[CONF_PASSWORD]
+            http_client = get_async_client(self.hass)
 
             data: dict[str, Any] = {}
 
-            async with UWClient(email=email, password=password) as client:
+            async with UWClient(
+                email=email,
+                password=password,
+                http_client=http_client,
+            ) as client:
                 await client.login()
 
                 account = await client.gql.get_account()

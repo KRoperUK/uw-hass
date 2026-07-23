@@ -4,8 +4,10 @@ import logging
 from typing import Any
 
 import voluptuous as vol
+
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
+from homeassistant.helpers.httpx_client import get_async_client
 
 from .const import DOMAIN
 
@@ -22,7 +24,9 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 class UWConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -32,7 +36,13 @@ class UWConfigFlow(ConfigFlow, domain=DOMAIN):
             try:
                 from uw_api import UWAuthError, UWClient
 
-                async with UWClient(email=email, password=password) as client:
+                http_client = get_async_client(self.hass)
+
+                async with UWClient(
+                    email=email,
+                    password=password,
+                    http_client=http_client,
+                ) as client:
                     await client.login()
                     account = await client.gql.get_account()
             except ImportError:
