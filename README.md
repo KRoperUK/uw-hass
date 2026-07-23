@@ -63,4 +63,4 @@ The `electricity_consumption` and `gas_consumption` sensors are compatible with 
 
 - Home Assistant 2024.1+
 - Python 3.12+
-- `uw-api` Python package
+- `uw-api==0.2.0` Python package

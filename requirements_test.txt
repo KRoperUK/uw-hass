@@ -7,4 +7,4 @@ python-dotenv
 ruff==0.16.0
 mypy==2.3.0
 
-uw-api
+uw-api==0.2.0
