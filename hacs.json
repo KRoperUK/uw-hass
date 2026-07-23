@@ -3,5 +3,6 @@
   "filename": "uw.zip",
   "zip_release": true,
   "render_readme": true,
-  "homeassistant": "2024.8.0"
+  "homeassistant": "2024.8.0",
+  "country": "GB"
 }
