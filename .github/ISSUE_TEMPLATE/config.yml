@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Authentication / setup help
+    url: https://github.com/KRoperUK/uw-hass/blob/main/README.md
+    about: Check the README for setup instructions and troubleshooting.
+  - name: Questions & discussions
+    url: https://github.com/KRoperUK/uw-hass/discussions
+    about: Ask questions about sensors, automations, or general usage here.
