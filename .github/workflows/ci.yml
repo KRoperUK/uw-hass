@@ -78,7 +78,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip setuptools wheel
-          pip install -c constraints.txt -r requirements_test.txt
+          pip install -r requirements_test.txt
 
       - name: Type check with mypy
         run: |
