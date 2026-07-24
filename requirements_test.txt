@@ -1,10 +1,10 @@
-pytest-homeassistant-custom-component
-
-pytest-cov
-pytest-sugar
+pytest-homeassistant-custom-component>=0.13.316
+pytest-cov>=7.0
+pytest-sugar>=1.0
 python-dotenv
+numpy>=2.0
 
 ruff==0.16.0
 mypy==2.3.0
 
-uw-api==0.2.0
+uw-api==0.2.2
