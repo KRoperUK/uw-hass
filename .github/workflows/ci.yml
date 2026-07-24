@@ -78,6 +78,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip setuptools wheel
+          pip install numpy  # satisfy pytest-homeassistant-custom-component pinned dep
           pip install -r requirements_test.txt
 
       - name: Type check with mypy
