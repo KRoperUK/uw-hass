@@ -76,7 +76,9 @@ jobs:
           cache-dependency-path: requirements_test.txt
 
       - name: Install dependencies
-        run: pip install -r requirements_test.txt
+        run: |
+          pip install --upgrade pip setuptools wheel
+          pip install -r requirements_test.txt
 
       - name: Type check with mypy
         run: |
