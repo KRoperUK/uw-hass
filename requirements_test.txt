@@ -7,4 +7,4 @@ numpy>=2.0
 ruff==0.16.0
 mypy==2.3.0
 
-uw-api==0.2.1
+uw-api==0.2.2

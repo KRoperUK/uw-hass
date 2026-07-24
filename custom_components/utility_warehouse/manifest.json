@@ -1,15 +1,21 @@
 {
   "domain": "utility_warehouse",
   "name": "Utility Warehouse",
-  "codeowners": ["@KRoperUK"],
+  "codeowners": [
+    "@KRoperUK"
+  ],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/KRoperUK/uw-hass",
   "integration_type": "hub",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/KRoperUK/uw-hass/issues",
-  "loggers": ["uw_api"],
+  "loggers": [
+    "uw_api"
+  ],
   "quality_scale": "bronze",
-  "requirements": ["uw-api==0.2.1"],
+  "requirements": [
+    "uw-api==0.2.2"
+  ],
   "version": "0.2.0"
 }
