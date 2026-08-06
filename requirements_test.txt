@@ -4,7 +4,7 @@ pytest-cov
 pytest-sugar
 python-dotenv
 
-ruff==0.16.0
+ruff==0.16.1
 mypy==2.3.0
 
-uw-api==0.2.0
+uw-api==0.2.2
