@@ -77,7 +77,7 @@ class UWBinarySensor(CoordinatorEntity[UWDataUpdateCoordinator], BinarySensorEnt
             bills = data.get("bills", [])
             if not bills:
                 return None
-            return bills[0].status.value == "overdue"
+            return bool(bills[0].status.value == "overdue")
 
         if sid == "smart_meter":
             meters = data.get("meters", [])
