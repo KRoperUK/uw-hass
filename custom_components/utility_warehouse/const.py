@@ -4,7 +4,7 @@ from typing import Final
 
 DOMAIN = "utility_warehouse"
 NAME = "Utility Warehouse"
-VERSION = "0.2.0"  # x-release-please-version
+VERSION = "0.2.1"  # x-release-please-version
 
 CONF_EMAIL = "email"
 CONF_PASSWORD = "password"
