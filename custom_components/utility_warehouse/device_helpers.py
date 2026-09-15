@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceInfo
 
 
 def build_uw_device_info(account_number: str, entry_unique_id: str) -> DeviceInfo:

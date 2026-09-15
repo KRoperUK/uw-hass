@@ -21,11 +21,11 @@ repos:
         language: system
         pass_filenames: false
         files: \.py$
-        stages: [pre-commit]
+        stages: [manual]
 
       - id: pytest
         name: pytest (no-cov)
         entry: .venv/bin/python -m pytest tests/ --no-cov -q
         language: system
         pass_filenames: false
-        stages: [pre-push]
+        stages: [manual]

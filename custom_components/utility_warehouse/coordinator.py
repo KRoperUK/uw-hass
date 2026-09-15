@@ -43,9 +43,7 @@ class UWDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _apply_backoff(self) -> None:
         self._current_interval = min(self._current_interval * 2, MAX_SCAN_INTERVAL)
         self.update_interval = timedelta(seconds=self._current_interval)
-        _LOGGER.warning(
-            "Backing off to %ss between updates", self._current_interval
-        )
+        _LOGGER.warning("Backing off to %ss between updates", self._current_interval)
 
     def _reset_backoff(self) -> None:
         if self._current_interval != DEFAULT_SCAN_INTERVAL:
@@ -57,9 +55,7 @@ class UWDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if self.last_update_success:
             return True
         return bool(
-            self.data
-            and time.monotonic() - self._last_success_time
-            < AVAILABILITY_GRACE_SECONDS
+            self.data and time.monotonic() - self._last_success_time < AVAILABILITY_GRACE_SECONDS
         )
 
     async def _async_update_data(self) -> dict[str, Any]:
