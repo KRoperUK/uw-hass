@@ -27,6 +27,10 @@ updates:
     labels:
       - "dependencies"
       - "python"
+    ignore:
+      # pytest-homeassistant-custom-component pins this exactly (==7.0.0),
+      # so any bump is unresolvable and poisons the whole python group.
+      - dependency-name: "pytest-cov"
     groups:
       python:
         patterns:
