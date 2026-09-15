@@ -2,9 +2,9 @@ pytest-homeassistant-custom-component>=0.13.316
 pytest-cov>=7.0
 pytest-sugar>=1.0
 python-dotenv
-numpy>=2.0
+numpy>=2.5.3
 
-ruff==0.16.0
-mypy==2.3.0
+ruff==0.16.7
+mypy==2.3.1
 
 uw-api==0.2.2
