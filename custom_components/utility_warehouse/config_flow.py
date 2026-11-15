@@ -30,8 +30,10 @@ class UWConfigFlow(ConfigFlow, domain=DOMAIN):
             email = user_input[CONF_EMAIL].strip()
             password = user_input[CONF_PASSWORD]
 
+            _LOGGER.debug("Utility Warehouse setup attempt started")
+            stage = "login"
             try:
-                from uw_api import UWAuthError, UWClient
+                from uw_api import UWAuthError, UWClient, UWRateLimitError, UWSessionExpiredError
 
                 http_client = get_async_client(self.hass)
 
@@ -41,14 +43,35 @@ class UWConfigFlow(ConfigFlow, domain=DOMAIN):
                     http_client=http_client,
                 ) as client:
                     await client.login()
+                    stage = "account fetch"
                     account = await client.gql.get_account()
             except ImportError:
                 _LOGGER.exception("uw-api library not installed")
                 errors["base"] = "connection_error"
-            except UWAuthError:
+            except (UWAuthError, UWSessionExpiredError) as err:
+                # Wrong credentials (or a session that died during setup) —
+                # never log the password, and keep the identifier at debug.
+                _LOGGER.info(
+                    "Utility Warehouse %s failed: invalid credentials (%s)",
+                    stage,
+                    type(err).__name__,
+                )
+                _LOGGER.debug("Credential rejection for identifier %s", email)
                 errors["base"] = "auth_error"
+            except UWRateLimitError:
+                _LOGGER.info("Utility Warehouse %s failed: rate limited, retry later", stage)
+                errors["base"] = "connection_error"
+            except OSError as err:
+                # DNS, refused connections, resets, timeouts — connectivity,
+                # not credentials.
+                _LOGGER.info(
+                    "Utility Warehouse %s failed: connection problem (%s)",
+                    stage,
+                    type(err).__name__,
+                )
+                errors["base"] = "connection_error"
             except Exception:
-                _LOGGER.exception("Unexpected error during config flow")
+                _LOGGER.exception("Unexpected error during config flow (%s)", stage)
                 errors["base"] = "connection_error"
             else:
                 await self.async_set_unique_id(email.lower())

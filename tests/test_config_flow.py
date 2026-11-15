@@ -68,6 +68,75 @@ async def test_auth_error_shows_error(hass):
     assert result["errors"] == {"base": "auth_error"}
 
 
+async def test_network_error_shows_connection_error_and_logs_stage(hass, caplog):
+    """A DNS/reset/timeout failure is connectivity, not credentials."""
+    import logging
+
+    result = await _start(hass)
+
+    with (
+        patch(f"{CONFIG_FLOW}.get_async_client", return_value=MagicMock()),
+        patch("uw_api.UWClient", fake_client_class(login_error=OSError("dns failed"))),
+        caplog.at_level(logging.INFO, logger="custom_components.utility_warehouse.config_flow"),
+    ):
+        result = await _submit(hass, result["flow_id"])
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {"base": "connection_error"}
+    assert "login failed: connection problem" in caplog.text
+
+
+async def test_rate_limit_shows_connection_error(hass):
+    """Rate limiting asks for a retry, not new credentials."""
+    result = await _start(hass)
+
+    with (
+        patch(f"{CONFIG_FLOW}.get_async_client", return_value=MagicMock()),
+        patch(
+            "uw_api.UWClient", fake_client_class(login_error=uw_api.UWRateLimitError("slow down"))
+        ),
+    ):
+        result = await _submit(hass, result["flow_id"])
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {"base": "connection_error"}
+
+
+async def test_session_expired_shows_auth_error(hass):
+    """A session that dies during setup needs re-authentication."""
+    result = await _start(hass)
+
+    with (
+        patch(f"{CONFIG_FLOW}.get_async_client", return_value=MagicMock()),
+        patch(
+            "uw_api.UWClient",
+            fake_client_class(login_error=uw_api.UWSessionExpiredError("expired")),
+        ),
+    ):
+        result = await _submit(hass, result["flow_id"])
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {"base": "auth_error"}
+
+
+async def test_account_fetch_failure_does_not_create_entry(hass, caplog):
+    """A login that succeeds but an account fetch that fails stays on the form."""
+    import logging
+
+    result = await _start(hass)
+
+    with (
+        patch(f"{CONFIG_FLOW}.get_async_client", return_value=MagicMock()),
+        patch("uw_api.UWClient", fake_client_class(fail_fields={"get_account"})),
+        caplog.at_level(logging.INFO, logger="custom_components.utility_warehouse.config_flow"),
+    ):
+        result = await _submit(hass, result["flow_id"])
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {"base": "connection_error"}
+    assert "account fetch" in caplog.text
+
+
 async def test_unexpected_error_shows_connection_error(hass):
     """An unexpected exception surfaces a connection_error on the form."""
     result = await _start(hass)
