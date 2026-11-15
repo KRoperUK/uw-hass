@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/KRoperUK/uw-hass/compare/v0.2.1...v0.2.2) (2026-11-15)
+
+
+### Bug Fixes
+
+* **config-flow:** log setup stage and map API errors without breaking auth ([2ec7f98](https://github.com/KRoperUK/uw-hass/commit/2ec7f981f9cbf9d785d0d9fb43ab2a2bd8354e5c)), closes [#23](https://github.com/KRoperUK/uw-hass/issues/23)
+
 ## [0.2.1](https://github.com/KRoperUK/uw-hass/compare/v0.2.0...v0.2.1) (2026-09-15)
 
 
