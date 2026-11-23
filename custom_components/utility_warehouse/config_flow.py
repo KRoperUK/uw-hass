@@ -7,10 +7,10 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.httpx_client import create_async_httpx_client, get_async_client
+from homeassistant.helpers.httpx_client import get_async_client
 
 from .const import CONF_SESSION_COOKIE, DOMAIN
+from .session import async_validate_session
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -26,17 +26,6 @@ STEP_SESSION_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_SESSION_COOKIE): str,
     }
 )
-
-
-async def _async_validate_session(hass: HomeAssistant, cookie_string: str) -> Any:
-    from uw_api import UWClient
-
-    http_client = create_async_httpx_client(hass, auto_cleanup=False)
-    try:
-        async with UWClient.from_session(cookie_string, http_client=http_client) as client:
-            return await client.gql.get_account()
-    finally:
-        await http_client.aclose()
 
 
 class UWConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -58,7 +47,7 @@ class UWConfigFlow(ConfigFlow, domain=DOMAIN):
             try:
                 from uw_api import UWAuthError, UWSessionExpiredError
 
-                account = await _async_validate_session(self.hass, cookie_string)
+                account = await async_validate_session(self.hass, cookie_string)
             except ImportError:
                 _LOGGER.exception("uw-api library not installed")
                 errors["base"] = "connection_error"
@@ -175,7 +164,7 @@ class UWConfigFlow(ConfigFlow, domain=DOMAIN):
             try:
                 from uw_api import UWAuthError, UWSessionExpiredError
 
-                account = await _async_validate_session(self.hass, cookie_string)
+                account = await async_validate_session(self.hass, cookie_string)
             except ImportError:
                 _LOGGER.exception("uw-api library not installed")
                 errors["base"] = "connection_error"

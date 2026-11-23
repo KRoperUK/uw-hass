@@ -83,7 +83,9 @@ Check that you copied the `Cookie` **request** header from `myaccount.uw.co.uk`
 while signed in, and that it still contains `_csrf` and `uw-user-session`.
 
 If the integration has been running and starts failing, the session has expired:
-reauthenticate the entry with a fresh header.
+Home Assistant raises a **Repair** ("Utility Warehouse session has expired") with
+a **Fix** button that asks for a fresh header. Sensors keep their last values for
+two hours, then become unavailable until the repair is applied.
 
 `connection_error` (including rate limiting) is transient: wait a few minutes
 and retry. If it persists, enable debug logging and include the

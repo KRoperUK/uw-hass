@@ -16,6 +16,12 @@ MAX_SCAN_INTERVAL = 86400  # 24 hours
 
 AVAILABILITY_GRACE_SECONDS = 7200  # 2 hours
 
+
+def session_issue_id(entry_id: str) -> str:
+    """Repair-issue id for an expired browser session."""
+    return f"session_expired_{entry_id}"
+
+
 ATTR_SERVICE_TYPE: Final = "service_type"
 ATTR_ACCOUNT_NUMBER: Final = "account_number"
 ATTR_TARIFF_NAME: Final = "tariff_name"

@@ -41,6 +41,26 @@
       "reauth_successful": "The Utility Warehouse session was updated."
     }
   },
+  "issues": {
+    "session_expired": {
+      "title": "Utility Warehouse session has expired",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "Update the Utility Warehouse session",
+            "description": "Sign in at myaccount.uw.co.uk, open the developer tools, copy the whole `Cookie:` request header for that site, and paste it here.",
+            "data": {
+              "session_cookie": "Cookie header"
+            }
+          }
+        },
+        "error": {
+          "auth_error": "That cookie header was rejected. Copy the full `Cookie:` request header while signed in.",
+          "connection_error": "Could not connect to Utility Warehouse. Check your internet connection."
+        }
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "electricity_consumption": { "name": "Electricity consumption" },

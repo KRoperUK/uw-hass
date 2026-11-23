@@ -5,7 +5,9 @@ import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import issue_registry as ir
 
+from .const import DOMAIN, session_issue_id
 from .coordinator import UWDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,3 +25,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    ir.async_delete_issue(hass, DOMAIN, session_issue_id(entry.entry_id))

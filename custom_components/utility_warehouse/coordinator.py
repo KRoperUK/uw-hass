@@ -9,6 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.httpx_client import create_async_httpx_client, get_async_client
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -18,6 +19,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     MAX_SCAN_INTERVAL,
+    session_issue_id,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -64,7 +66,13 @@ class UWDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         try:
             data = await self._async_fetch_all()
-        except (UWAuthError, UWSessionExpiredError) as exc:
+        except UWSessionExpiredError as exc:
+            # Soft failure: keep the last data available for the grace window,
+            # stop hammering the portal, and raise a repairable issue.
+            self._async_report_expired_session()
+            self._apply_backoff()
+            raise UpdateFailed("Utility Warehouse session has expired") from exc
+        except UWAuthError as exc:
             raise ConfigEntryAuthFailed from exc
         except Exception as exc:
             self._apply_backoff()
@@ -72,7 +80,31 @@ class UWDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         self._last_success_time = time.monotonic()
         self._reset_backoff()
+        self._async_clear_expired_session_issue()
         return data
+
+    def _async_report_expired_session(self) -> None:
+        if not self._entry.data.get(CONF_SESSION_COOKIE):
+            return
+        _LOGGER.warning(
+            "Utility Warehouse session for %s has expired; a repair has been raised",
+            self._entry.title,
+        )
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            session_issue_id(self._entry.entry_id),
+            is_fixable=True,
+            is_persistent=True,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="session_expired",
+            translation_placeholders={"account": self._entry.title},
+            data={"entry_id": self._entry.entry_id},
+        )
+
+    def _async_clear_expired_session_issue(self) -> None:
+        if self._entry.data.get(CONF_SESSION_COOKIE):
+            ir.async_delete_issue(self.hass, DOMAIN, session_issue_id(self._entry.entry_id))
 
     async def _async_fetch_all(self) -> dict[str, Any]:
         from uw_api import UWClient

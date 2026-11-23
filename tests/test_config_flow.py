@@ -16,6 +16,7 @@ from custom_components.utility_warehouse.const import CONF_SESSION_COOKIE, DOMAI
 from .conftest import ACCOUNT_NUMBER, EMAIL, PASSWORD, fake_client_class
 
 CONFIG_FLOW = "custom_components.utility_warehouse.config_flow"
+SESSION = "custom_components.utility_warehouse.session"
 COOKIE = "_csrf=abc; uw-user-session=def"
 
 
@@ -202,7 +203,7 @@ async def test_session_setup(hass):
     result = await _select(hass, "session")
 
     with (
-        patch(f"{CONFIG_FLOW}.create_async_httpx_client", return_value=_http_client()),
+        patch(f"{SESSION}.create_async_httpx_client", return_value=_http_client()),
         patch("uw_api.UWClient", fake_client_class()),
     ):
         result = await _submit_session(hass, result["flow_id"])
@@ -219,7 +220,7 @@ async def test_session_rejected_shows_auth_error(hass):
     result = await _select(hass, "session")
 
     with (
-        patch(f"{CONFIG_FLOW}.create_async_httpx_client", return_value=_http_client()),
+        patch(f"{SESSION}.create_async_httpx_client", return_value=_http_client()),
         patch(
             "uw_api.UWClient",
             fake_client_class(account_error=uw_api.UWSessionExpiredError("expired")),
@@ -236,7 +237,7 @@ async def test_session_connection_error(hass):
     result = await _select(hass, "session")
 
     with (
-        patch(f"{CONFIG_FLOW}.create_async_httpx_client", return_value=_http_client()),
+        patch(f"{SESSION}.create_async_httpx_client", return_value=_http_client()),
         patch("uw_api.UWClient", fake_client_class(account_error=OSError("offline"))),
     ):
         result = await _submit_session(hass, result["flow_id"])
@@ -257,7 +258,7 @@ async def test_reauth_updates_the_stored_cookie(hass, mock_session_entry):
     )
 
     with (
-        patch(f"{CONFIG_FLOW}.create_async_httpx_client", return_value=_http_client()),
+        patch(f"{SESSION}.create_async_httpx_client", return_value=_http_client()),
         patch("uw_api.UWClient", fake_client_class()),
     ):
         result = await _submit_session(hass, result["flow_id"], "_csrf=new; uw-user-session=new")
