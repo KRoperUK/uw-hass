@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import timedelta
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import uw_api
@@ -64,15 +64,42 @@ async def test_update_data_auth_error_raises_config_entry_auth_failed(hass, mock
         await coordinator._async_update_data()
 
 
-async def test_update_data_generic_auth_message_raises_auth_failed(hass, mock_entry):
-    """Any error mentioning auth is treated as an auth failure."""
-    coordinator = _build(hass, mock_entry)
+async def test_update_data_session_expiry_raises_auth_failed(hass, mock_session_entry):
+    """An expired browser session triggers reauthentication."""
+    coordinator = _build(hass, mock_session_entry)
+    http_client = MagicMock()
+    http_client.aclose = AsyncMock()
 
     with (
-        _patched(fake_client_class(login_error=RuntimeError("Auth rejected"))),
+        patch(f"{COORDINATOR}.create_async_httpx_client", return_value=http_client),
+        patch(
+            "uw_api.UWClient",
+            fake_client_class(account_error=uw_api.UWSessionExpiredError("expired")),
+        ),
         pytest.raises(ConfigEntryAuthFailed),
     ):
         await coordinator._async_update_data()
+
+    http_client.aclose.assert_awaited_once()
+
+
+async def test_update_data_session_mode_uses_cookie_client(hass, mock_session_entry):
+    """A session entry builds a cookie client and never logs in."""
+    coordinator = _build(hass, mock_session_entry)
+    http_client = MagicMock()
+    http_client.aclose = AsyncMock()
+    client_class = fake_client_class()
+
+    with (
+        patch(f"{COORDINATOR}.create_async_httpx_client", return_value=http_client),
+        patch(f"{COORDINATOR}.get_async_client") as shared_client,
+        patch("uw_api.UWClient", client_class),
+    ):
+        data = await coordinator._async_update_data()
+
+    assert data["account"].account_number == ACCOUNT_NUMBER
+    shared_client.assert_not_called()
+    http_client.aclose.assert_awaited_once()
 
 
 async def test_update_data_failure_raises_update_failed_and_backs_off(hass, mock_entry):

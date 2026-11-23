@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.utility_warehouse.const import DOMAIN
+from custom_components.utility_warehouse.const import CONF_SESSION_COOKIE, DOMAIN
 
 EMAIL = "user@example.com"
 PASSWORD = "hunter2"
@@ -60,9 +60,15 @@ def make_uw_data() -> dict[str, Any]:
 class FakeGql:
     """Stand-in for the ``uw_api`` GraphQL facade."""
 
-    def __init__(self, data: dict[str, Any], fail_fields: set[str]) -> None:
+    def __init__(
+        self,
+        data: dict[str, Any],
+        fail_fields: set[str],
+        account_error: Exception | None = None,
+    ) -> None:
         self._data = data
         self._fail = fail_fields
+        self._account_error = account_error
 
     async def _fetch(self, method: str, key: str) -> Any:
         if method in self._fail:
@@ -70,6 +76,8 @@ class FakeGql:
         return self._data.get(key)
 
     async def get_account(self) -> Any:
+        if self._account_error is not None:
+            raise self._account_error
         return await self._fetch("get_account", "account")
 
     async def get_balance(self) -> Any:
@@ -99,9 +107,18 @@ class FakeUWClient:
         data: dict[str, Any] | None = None,
         fail_fields: set[str] | None = None,
         login_error: Exception | None = None,
+        account_error: Exception | None = None,
     ) -> None:
         self._login_error = login_error
-        self.gql = FakeGql(data if data is not None else make_uw_data(), fail_fields or set())
+        self.gql = FakeGql(
+            data if data is not None else make_uw_data(),
+            fail_fields or set(),
+            account_error,
+        )
+
+    @classmethod
+    def from_session(cls, cookie_string: str, **kwargs: Any) -> FakeUWClient:
+        return cls()
 
     async def __aenter__(self) -> FakeUWClient:
         return self
@@ -119,12 +136,22 @@ def fake_client_class(
     data: dict[str, Any] | None = None,
     fail_fields: set[str] | None = None,
     login_error: Exception | None = None,
+    account_error: Exception | None = None,
 ) -> type[FakeUWClient]:
     """Return a ``UWClient`` replacement pre-configured for a test."""
 
     class _Client(FakeUWClient):
         def __init__(self, *args: Any, **kwargs: Any) -> None:
-            super().__init__(data=data, fail_fields=fail_fields, login_error=login_error)
+            super().__init__(
+                data=data,
+                fail_fields=fail_fields,
+                login_error=login_error,
+                account_error=account_error,
+            )
+
+        @classmethod
+        def from_session(cls, cookie_string: str, **kwargs: Any) -> FakeUWClient:
+            return cls()
 
     return _Client
 
@@ -137,6 +164,20 @@ def mock_entry() -> MockConfigEntry:
         data={"email": EMAIL, "password": PASSWORD},
         unique_id=EMAIL,
         title=f"UW - {EMAIL}",
+    )
+
+
+@pytest.fixture
+def mock_session_entry() -> MockConfigEntry:
+    """Return a config entry backed by a browser session."""
+    return MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SESSION_COOKIE: "_csrf=abc; uw-user-session=def",
+            "account_number": ACCOUNT_NUMBER,
+        },
+        unique_id=ACCOUNT_NUMBER,
+        title=f"UW - {ACCOUNT_NUMBER}",
     )
 
 

@@ -9,11 +9,12 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers.httpx_client import get_async_client
+from homeassistant.helpers.httpx_client import create_async_httpx_client, get_async_client
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
     AVAILABILITY_GRACE_SECONDS,
+    CONF_SESSION_COOKIE,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     MAX_SCAN_INTERVAL,
@@ -59,62 +60,58 @@ class UWDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
 
     async def _async_update_data(self) -> dict[str, Any]:
+        from uw_api import UWAuthError, UWSessionExpiredError
+
         try:
-            from uw_api import UWClient
-
-            email = self._entry.data[CONF_EMAIL]
-            password = self._entry.data[CONF_PASSWORD]
-            http_client = get_async_client(self.hass)
-
-            data: dict[str, Any] = {}
-
-            async with UWClient(
-                email=email,
-                password=password,
-                http_client=http_client,
-            ) as client:
-                await client.login()
-
-                account = await client.gql.get_account()
-                data["account"] = account
-
-                try:
-                    data["balance"] = await client.gql.get_balance()
-                except Exception as exc:
-                    _LOGGER.warning("Failed to fetch balance: %s", exc)
-
-                try:
-                    data["tariff"] = await client.gql.get_tariff()
-                except Exception as exc:
-                    _LOGGER.warning("Failed to fetch tariff: %s", exc)
-
-                try:
-                    data["consumption"] = await client.gql.get_consumption()
-                except Exception as exc:
-                    _LOGGER.warning("Failed to fetch consumption: %s", exc)
-
-                try:
-                    data["meters"] = await client.gql.get_meters()
-                except Exception as exc:
-                    _LOGGER.warning("Failed to fetch meters: %s", exc)
-
-                try:
-                    data["readings"] = await client.gql.get_meter_readings()
-                except Exception as exc:
-                    _LOGGER.warning("Failed to fetch readings: %s", exc)
-
-                try:
-                    data["bills"] = await client.gql.get_bills()
-                except Exception as exc:
-                    _LOGGER.warning("Failed to fetch bills: %s", exc)
-
-            self._last_success_time = time.monotonic()
-            self._reset_backoff()
-            return data
-
+            data = await self._async_fetch_all()
+        except (UWAuthError, UWSessionExpiredError) as exc:
+            raise ConfigEntryAuthFailed from exc
         except Exception as exc:
-            msg = str(exc).lower()
-            if "auth" in msg or "credential" in msg or "login failed" in msg:
-                raise ConfigEntryAuthFailed from exc
             self._apply_backoff()
             raise UpdateFailed(f"Failed to fetch UW data: {exc}") from exc
+
+        self._last_success_time = time.monotonic()
+        self._reset_backoff()
+        return data
+
+    async def _async_fetch_all(self) -> dict[str, Any]:
+        from uw_api import UWClient
+
+        cookie = self._entry.data.get(CONF_SESSION_COOKIE)
+        if cookie:
+            # Session clients need their own cookie jar; the shared HA client
+            # must not carry one account's cookies for every entry.
+            http_client = create_async_httpx_client(self.hass, auto_cleanup=False)
+            try:
+                async with UWClient.from_session(cookie, http_client=http_client) as client:
+                    return await self._async_collect(client)
+            finally:
+                await http_client.aclose()
+
+        async with UWClient(
+            email=self._entry.data[CONF_EMAIL],
+            password=self._entry.data[CONF_PASSWORD],
+            http_client=get_async_client(self.hass),
+        ) as client:
+            await client.login()
+            return await self._async_collect(client)
+
+    async def _async_collect(self, client: Any) -> dict[str, Any]:
+        data: dict[str, Any] = {}
+
+        data["account"] = await client.gql.get_account()
+
+        for key, method in (
+            ("balance", client.gql.get_balance),
+            ("tariff", client.gql.get_tariff),
+            ("consumption", client.gql.get_consumption),
+            ("meters", client.gql.get_meters),
+            ("readings", client.gql.get_meter_readings),
+            ("bills", client.gql.get_bills),
+        ):
+            try:
+                data[key] = await method()
+            except Exception as exc:
+                _LOGGER.warning("Failed to fetch %s: %s", key, exc)
+
+        return data
