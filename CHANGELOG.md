@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.2](https://github.com/KRoperUK/uw-hass/compare/v0.3.1...v0.3.2) (2026-11-23)
+
+
+### Bug Fixes
+
+* **ci:** tolerate missing tags when pruning dev releases ([63ed94c](https://github.com/KRoperUK/uw-hass/commit/63ed94c60d09295f54db57024ea91a4ae87192f9))
+* **ci:** tolerate missing tags when pruning dev releases ([801af9e](https://github.com/KRoperUK/uw-hass/commit/801af9ec2c2314d9be89d78145a2e184d7f4f9c3))
+* report real meter readings and the newest bill ([16831b2](https://github.com/KRoperUK/uw-hass/commit/16831b27285a0bb68bcf20159314aea3f3e264c6))
+* report real meter readings and the newest bill ([04c29da](https://github.com/KRoperUK/uw-hass/commit/04c29da66fa231baf06ee322fa4e17f212f9aa7a))
+
 ## [0.3.1](https://github.com/KRoperUK/uw-hass/compare/v0.3.0...v0.3.1) (2026-11-23)
 
 

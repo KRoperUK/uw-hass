@@ -1,6 +1,6 @@
 [project]
 name = "uw-hass"
-version = "0.3.1"
+version = "0.3.2"
 description = "Utility Warehouse custom integration for Home Assistant"
 requires-python = ">=3.12"
 
