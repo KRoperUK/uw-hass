@@ -8,15 +8,14 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from homeassistant.components.sensor import SensorStateClass
 
 from custom_components.utility_warehouse.sensor import SENSOR_TYPES, UWSensor
 
 from .conftest import make_uw_data
 
-# NOTE: the two *_meter_reading entries report None because the resolver does
-# ``(last_reading_date is not None and 0.0) or None`` — the 0.0 is falsy so it
-# always collapses to None. Asserted here as current behaviour; flagged as a
-# latent bug rather than silently "fixed".
+# NOTE: the shared fixture has no meter readings, so the two *_meter_reading
+# sensors resolve to None here; the reading path is covered separately below.
 EXPECTED_VALUES: dict[str, Any] = {
     "electricity_consumption": 12.5,
     "electricity_cost": 3.75,
@@ -101,6 +100,7 @@ def test_meter_readings_are_none_when_meter_missing(mock_entry):
     data = make_uw_data()
     data["meters"] = [
         SimpleNamespace(
+            meter_id="G-M1",
             meter_type=SimpleNamespace(value="GAS"),
             meter_number="G-1",
             last_reading_date=datetime(2026, 1, 3),
@@ -110,6 +110,60 @@ def test_meter_readings_are_none_when_meter_missing(mock_entry):
 
     assert _build(mock_entry, "electricity_meter_number", data).native_value is None
     assert _build(mock_entry, "electricity_meter_reading", data).native_value is None
+
+
+def test_meter_reading_uses_the_newest_reading(mock_entry):
+    """A meter reading sensor reports the latest register reading for its meter."""
+    data = make_uw_data()
+    data["readings"] = [
+        SimpleNamespace(meter_id="E-M1", reading_date=datetime(2026, 1, 1), value=100.0),
+        SimpleNamespace(meter_id="E-M1", reading_date=datetime(2026, 1, 5), value=250.0),
+        SimpleNamespace(meter_id="G-M1", reading_date=datetime(2026, 1, 6), value=42.0),
+    ]
+
+    assert _build(mock_entry, "electricity_meter_reading", data).native_value == 250.0
+    assert _build(mock_entry, "gas_meter_reading", data).native_value == 42.0
+
+
+def test_meter_reading_ignores_other_meters(mock_entry):
+    """Readings for an unrelated meter id do not leak into a fuel type."""
+    data = make_uw_data()
+    data["readings"] = [
+        SimpleNamespace(meter_id="OTHER", reading_date=datetime(2026, 1, 5), value=999.0)
+    ]
+
+    assert _build(mock_entry, "electricity_meter_reading", data).native_value is None
+
+
+def test_latest_bill_is_the_newest_by_date(mock_entry):
+    """Bill sensors use the newest bill, not whichever is first in the list."""
+    data = make_uw_data()
+    data["bills"] = [
+        SimpleNamespace(
+            total_amount_gbp=10.0,
+            bill_date=date(2025, 12, 1),
+            status=SimpleNamespace(value="paid"),
+        ),
+        SimpleNamespace(
+            total_amount_gbp=20.0,
+            bill_date=date(2026, 2, 1),
+            status=SimpleNamespace(value="pending"),
+        ),
+    ]
+
+    assert _build(mock_entry, "last_bill_amount", data).native_value == 20.0
+    assert _build(mock_entry, "last_bill_date", data).native_value == date(2026, 2, 1)
+    assert _build(mock_entry, "bill_status", data).native_value == "pending"
+
+
+def test_rate_sensors_are_not_monetary(mock_entry):
+    """p/kWh and p/day are not currencies, so they must not use MONETARY."""
+    for sensor_id, unit in (("unit_rate", "p/kWh"), ("standing_charge", "p/day")):
+        sensor = _build(mock_entry, sensor_id, make_uw_data())
+        assert sensor.device_class is None
+        assert sensor.native_unit_of_measurement == unit
+        assert sensor.state_class == SensorStateClass.MEASUREMENT
+        assert sensor.suggested_display_precision == 2
 
 
 def test_gas_meter_number_is_none_when_no_gas_meter(mock_entry):

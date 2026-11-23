@@ -34,12 +34,14 @@ def make_uw_data() -> dict[str, Any]:
         ),
         "meters": [
             SimpleNamespace(
+                meter_id="E-M1",
                 meter_type=SimpleNamespace(value="ELECTRICITY"),
                 meter_number="E-1",
                 last_reading_date=datetime(2026, 1, 2, 3, 4, 5),
                 is_smart=True,
             ),
             SimpleNamespace(
+                meter_id="G-M1",
                 meter_type=SimpleNamespace(value="GAS"),
                 meter_number="G-1",
                 last_reading_date=datetime(2026, 1, 3, 3, 4, 5),
