@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/KRoperUK/uw-hass/compare/v0.3.2...v0.4.0) (2026-11-23)
+
+
+### Features
+
+* add redacted diagnostics ([c5c7084](https://github.com/KRoperUK/uw-hass/commit/c5c708425e01a15e48c529a002693cd12622c602))
+* add redacted diagnostics ([b1fe6cc](https://github.com/KRoperUK/uw-hass/commit/b1fe6cc093d32d74215c0f940e6613560ca0115b))
+
 ## [0.3.2](https://github.com/KRoperUK/uw-hass/compare/v0.3.1...v0.3.2) (2026-11-23)
 
 
