@@ -12,12 +12,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import uw_api
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from custom_components.utility_warehouse.const import (
     AVAILABILITY_GRACE_SECONDS,
     DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
     MAX_SCAN_INTERVAL,
+    session_issue_id,
 )
 from custom_components.utility_warehouse.coordinator import UWDataUpdateCoordinator
 
@@ -35,6 +38,19 @@ def _patched(client_class: type) -> Iterator[None]:
     """Patch the HTTP client and the uw_api client used by the coordinator."""
     with (
         patch(f"{COORDINATOR}.get_async_client", return_value=MagicMock()),
+        patch("uw_api.UWClient", client_class),
+    ):
+        yield
+
+
+@contextmanager
+def _patched_session(client_class: type) -> Iterator[None]:
+    """Patch the dedicated cookie-jar client used in session mode."""
+    http_client = MagicMock()
+    http_client.aclose = AsyncMock()
+    with (
+        patch(f"{COORDINATOR}.create_async_httpx_client", return_value=http_client),
+        patch(f"{COORDINATOR}.get_async_client"),
         patch("uw_api.UWClient", client_class),
     ):
         yield
@@ -64,8 +80,10 @@ async def test_update_data_auth_error_raises_config_entry_auth_failed(hass, mock
         await coordinator._async_update_data()
 
 
-async def test_update_data_session_expiry_raises_auth_failed(hass, mock_session_entry):
-    """An expired browser session triggers reauthentication."""
+async def test_update_data_session_expiry_raises_update_failed_and_reports_repair(
+    hass, mock_session_entry
+):
+    """An expired session degrades softly and raises a repairable issue."""
     coordinator = _build(hass, mock_session_entry)
     http_client = MagicMock()
     http_client.aclose = AsyncMock()
@@ -76,11 +94,42 @@ async def test_update_data_session_expiry_raises_auth_failed(hass, mock_session_
             "uw_api.UWClient",
             fake_client_class(account_error=uw_api.UWSessionExpiredError("expired")),
         ),
-        pytest.raises(ConfigEntryAuthFailed),
+        pytest.raises(UpdateFailed),
     ):
         await coordinator._async_update_data()
 
     http_client.aclose.assert_awaited_once()
+    assert coordinator._current_interval == DEFAULT_SCAN_INTERVAL * 2
+
+    issue = ir.async_get(hass).async_get_issue(
+        DOMAIN, session_issue_id(mock_session_entry.entry_id)
+    )
+    assert issue is not None
+    assert issue.is_fixable
+    assert issue.translation_key == "session_expired"
+
+
+async def test_successful_update_clears_session_issue(hass, mock_session_entry):
+    """A successful refresh removes a stale session repair issue."""
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        session_issue_id(mock_session_entry.entry_id),
+        is_fixable=True,
+        is_persistent=True,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="session_expired",
+        data={"entry_id": mock_session_entry.entry_id},
+    )
+    coordinator = _build(hass, mock_session_entry)
+
+    with _patched_session(fake_client_class()):
+        await coordinator._async_update_data()
+
+    assert (
+        ir.async_get(hass).async_get_issue(DOMAIN, session_issue_id(mock_session_entry.entry_id))
+        is None
+    )
 
 
 async def test_update_data_session_mode_uses_cookie_client(hass, mock_session_entry):
