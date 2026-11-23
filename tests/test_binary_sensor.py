@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
@@ -43,6 +44,17 @@ def test_bill_overdue_is_none_without_bills(mock_entry):
     data["bills"] = []
 
     assert _build(mock_entry, "bill_overdue", data).is_on is None
+
+
+def test_bill_overdue_uses_the_newest_bill(mock_entry):
+    """Ordering in the API payload must not decide which bill is current."""
+    data = make_uw_data()
+    data["bills"] = [
+        SimpleNamespace(bill_date=date(2026, 2, 1), status=SimpleNamespace(value="overdue")),
+        SimpleNamespace(bill_date=date(2025, 12, 1), status=SimpleNamespace(value="paid")),
+    ]
+
+    assert _build(mock_entry, "bill_overdue", data).is_on is True
 
 
 def test_smart_meter_is_on_when_any_meter_is_smart(mock_entry):

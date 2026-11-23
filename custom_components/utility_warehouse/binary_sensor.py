@@ -74,10 +74,11 @@ class UWBinarySensor(CoordinatorEntity[UWDataUpdateCoordinator], BinarySensorEnt
         sid = self._sensor_id
 
         if sid == "bill_overdue":
-            bills = data.get("bills", [])
+            bills = data.get("bills") or []
             if not bills:
                 return None
-            return bool(bills[0].status.value == "overdue")
+            newest = max(bills, key=lambda bill: bill.bill_date)
+            return bool(newest.status.value == "overdue")
 
         if sid == "smart_meter":
             meters = data.get("meters", [])

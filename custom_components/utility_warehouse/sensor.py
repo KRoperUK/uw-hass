@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -15,6 +16,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .coordinator import UWDataUpdateCoordinator
 from .device_helpers import build_uw_device_info
+
+_LOGGER = logging.getLogger(__name__)
 
 SENSOR_TYPES: dict[str, dict[str, Any]] = {
     "electricity_consumption": {
@@ -55,11 +58,11 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
     "tariff_name": {},
     "unit_rate": {
         "unit": "p/kWh",
-        "device_class": SensorDeviceClass.MONETARY,
+        "state_class": SensorStateClass.MEASUREMENT,
     },
     "standing_charge": {
         "unit": "p/day",
-        "device_class": SensorDeviceClass.MONETARY,
+        "state_class": SensorStateClass.MEASUREMENT,
     },
     "last_bill_amount": {
         "unit": "GBP",
@@ -73,6 +76,27 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
 }
 
 SUGGESTED_DISPLAY_PRECISION = 2
+PRECISION_UNITS = {"GBP", "p/kWh", "p/day"}
+
+
+def latest_bill(bills: list[Any]) -> Any | None:
+    """Return the most recent bill by date, whatever order the API used."""
+    return max(bills, key=lambda bill: bill.bill_date) if bills else None
+
+
+def latest_meter_reading(data: dict[str, Any], meter_type: str) -> float | None:
+    """Return the newest register reading for the first meter of a fuel type."""
+    meters = data.get("meters") or []
+    readings = data.get("readings") or []
+    meter_ids = {
+        meter.meter_id
+        for meter in meters
+        if meter.meter_type.value.upper() == meter_type and getattr(meter, "meter_id", "")
+    }
+    candidates = [reading for reading in readings if reading.meter_id in meter_ids]
+    if not candidates:
+        return None
+    return float(max(candidates, key=lambda reading: reading.reading_date).value)
 
 
 async def async_setup_entry(
@@ -106,7 +130,7 @@ class UWSensor(CoordinatorEntity[UWDataUpdateCoordinator], SensorEntity):
         self._attr_native_unit_of_measurement = sensor_def.get("unit")
         self._attr_device_class = sensor_def.get("device_class")
         self._attr_state_class = sensor_def.get("state_class")
-        if sensor_def.get("unit") == "GBP":
+        if sensor_def.get("unit") in PRECISION_UNITS:
             self._attr_suggested_display_precision = SUGGESTED_DISPLAY_PRECISION
 
         account = (coordinator.data or {}).get("account")
@@ -129,6 +153,7 @@ class UWSensor(CoordinatorEntity[UWDataUpdateCoordinator], SensorEntity):
         try:
             return self._resolve_value(data)
         except Exception:
+            _LOGGER.debug("Could not resolve %s", self._sensor_id, exc_info=True)
             return None
 
     def _resolve_value(self, data: dict[str, Any]) -> Any:
@@ -151,12 +176,8 @@ class UWSensor(CoordinatorEntity[UWDataUpdateCoordinator], SensorEntity):
             return c.gas_cost_gbp if c else None
 
         if sid in ("electricity_meter_reading", "gas_meter_reading"):
-            meters = data.get("meters", [])
             want = "ELECTRICITY" if sid.startswith("electricity") else "GAS"
-            for m in meters:
-                if m.meter_type.value.upper() == want:
-                    return (m.last_reading_date is not None and 0.0) or None
-            return None
+            return latest_meter_reading(data, want)
 
         if sid == "last_reading_date":
             meters = data.get("meters", [])
@@ -194,15 +215,15 @@ class UWSensor(CoordinatorEntity[UWDataUpdateCoordinator], SensorEntity):
             return None
 
         if sid == "last_bill_amount":
-            bills = data.get("bills", [])
-            return bills[0].total_amount_gbp if bills else None
+            bill = latest_bill(data.get("bills") or [])
+            return bill.total_amount_gbp if bill else None
 
         if sid == "last_bill_date":
-            bills = data.get("bills", [])
-            return bills[0].bill_date if bills else None
+            bill = latest_bill(data.get("bills") or [])
+            return bill.bill_date if bill else None
 
         if sid == "bill_status":
-            bills = data.get("bills", [])
-            return bills[0].status.value if bills else None
+            bill = latest_bill(data.get("bills") or [])
+            return bill.status.value if bill else None
 
         return None
