@@ -12,12 +12,12 @@ from custom_components.utility_warehouse.diagnostics import (
 from .conftest import ACCOUNT_NUMBER, make_uw_data
 
 
-async def test_credentials_are_redacted(hass, mock_session_entry):
+async def test_credentials_are_redacted(hass, mock_entry):
     """The session cookie must never appear in diagnostics output."""
-    mock_session_entry.add_to_hass(hass)
-    mock_session_entry.runtime_data = MagicMock(last_update_success=True, data=make_uw_data())
+    mock_entry.add_to_hass(hass)
+    mock_entry.runtime_data = MagicMock(last_update_success=True, data=make_uw_data())
 
-    diagnostics = await async_get_config_entry_diagnostics(hass, mock_session_entry)
+    diagnostics = await async_get_config_entry_diagnostics(hass, mock_entry)
 
     data = diagnostics["entry"]["data"]
     assert data[CONF_SESSION_COOKIE] == "**REDACTED**"

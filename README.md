@@ -24,11 +24,9 @@ Add this repository as a custom repository in HACS.
 
 ## Configuration
 
-### Browser session (recommended)
-
-The UW portal completes a browser-only device check after the password is
-entered, so Home Assistant cannot sign in with a password. It can, however,
-reuse a session you already created in your browser.
+Password sign-in is not supported: the UW portal completes a browser-only
+device check after the password is entered, which Home Assistant cannot do. The
+integration reuses a session you already created instead.
 
 1. Sign in at <https://myaccount.uw.co.uk> in any browser.
 2. Open the developer tools (F12) → **Network**, reload the page, click the
@@ -36,17 +34,18 @@ reuse a session you already created in your browser.
    header. In Chrome/Edge: right-click the request → **Copy** →
    **Copy as cURL**, then take the value after `-H 'cookie: '`. In Firefox:
    **Copy Value** on the `Cookie` header.
-3. Settings → Devices & Services → Add Integration → Utility Warehouse →
-   **Sign in with a browser session**, and paste the header.
+3. Settings → Devices & Services → Add Integration → Utility Warehouse, and
+   paste the header.
 
-The session lasts about a month. When it expires the integration asks to be
-reauthenticated and you paste a fresh header — no reinstall needed.
+The session lasts about a month. When it expires the integration raises a
+**Repair** asking for a fresh header — no reinstall needed.
 
-### Email and password
+### If Cloudflare blocks the requests
 
-The option is still offered, but password sign-in currently fails: the portal
-accepts the password and then rejects the request because its browser device
-check cannot run in Home Assistant. Use a browser session instead.
+Paste the browser's user agent into the optional field on the same form
+(DevTools console: `navigator.userAgent`). Cloudflare's clearance cookie is
+bound to the user agent that solved the challenge, so the integration must send
+the same one. Leave it blank unless you see `429`/challenge errors in the log.
 
 
 ## Sensors

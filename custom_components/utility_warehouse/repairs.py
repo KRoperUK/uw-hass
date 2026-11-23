@@ -7,7 +7,7 @@ import voluptuous as vol
 from homeassistant.components.repairs import RepairsFlow
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_SESSION_COOKIE
+from .const import CONF_SESSION_COOKIE, CONF_USER_AGENT
 from .session import async_validate_session
 
 _LOGGER = logging.getLogger(__name__)
@@ -15,6 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 STEP_SESSION_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_SESSION_COOKIE): str,
+        vol.Optional(CONF_USER_AGENT, default=""): str,
     }
 )
 
@@ -29,10 +30,11 @@ class SessionExpiredRepairFlow(RepairsFlow):
 
         if user_input is not None:
             cookie_string = user_input[CONF_SESSION_COOKIE].strip()
+            user_agent = (user_input.get(CONF_USER_AGENT) or "").strip() or None
             try:
                 from uw_api import UWAuthError, UWSessionExpiredError
 
-                account = await async_validate_session(self.hass, cookie_string)
+                account = await async_validate_session(self.hass, cookie_string, user_agent)
             except ImportError:
                 _LOGGER.exception("uw-api library not installed")
                 errors["base"] = "connection_error"
@@ -44,14 +46,13 @@ class SessionExpiredRepairFlow(RepairsFlow):
                 errors["base"] = "connection_error"
             else:
                 if entry is not None:
-                    self.hass.config_entries.async_update_entry(
-                        entry,
-                        data={
-                            **entry.data,
-                            CONF_SESSION_COOKIE: cookie_string,
-                            "account_number": account.account_number,
-                        },
-                    )
+                    data = {
+                        CONF_SESSION_COOKIE: cookie_string,
+                        "account_number": account.account_number,
+                    }
+                    if user_agent:
+                        data[CONF_USER_AGENT] = user_agent
+                    self.hass.config_entries.async_update_entry(entry, data=data)
                     await self.hass.config_entries.async_reload(entry.entry_id)
                 return self.async_create_entry(title="", data={})
 

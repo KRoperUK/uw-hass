@@ -6,16 +6,16 @@ from datetime import timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import issue_registry as ir
-from homeassistant.helpers.httpx_client import create_async_httpx_client, get_async_client
+from homeassistant.helpers.httpx_client import create_async_httpx_client
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
     AVAILABILITY_GRACE_SECONDS,
     CONF_SESSION_COOKIE,
+    CONF_USER_AGENT,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     MAX_SCAN_INTERVAL,
@@ -72,6 +72,8 @@ class UWDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._async_report_expired_session()
             self._apply_backoff()
             raise UpdateFailed("Utility Warehouse session has expired") from exc
+        except ConfigEntryAuthFailed:
+            raise
         except UWAuthError as exc:
             raise ConfigEntryAuthFailed from exc
         except Exception as exc:
@@ -84,8 +86,6 @@ class UWDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return data
 
     def _async_report_expired_session(self) -> None:
-        if not self._entry.data.get(CONF_SESSION_COOKIE):
-            return
         _LOGGER.warning(
             "Utility Warehouse session for %s has expired; a repair has been raised",
             self._entry.title,
@@ -103,30 +103,27 @@ class UWDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
 
     def _async_clear_expired_session_issue(self) -> None:
-        if self._entry.data.get(CONF_SESSION_COOKIE):
-            ir.async_delete_issue(self.hass, DOMAIN, session_issue_id(self._entry.entry_id))
+        ir.async_delete_issue(self.hass, DOMAIN, session_issue_id(self._entry.entry_id))
 
     async def _async_fetch_all(self) -> dict[str, Any]:
         from uw_api import UWClient
 
         cookie = self._entry.data.get(CONF_SESSION_COOKIE)
-        if cookie:
-            # Session clients need their own cookie jar; the shared HA client
-            # must not carry one account's cookies for every entry.
-            http_client = create_async_httpx_client(self.hass, auto_cleanup=False)
-            try:
-                async with UWClient.from_session(cookie, http_client=http_client) as client:
-                    return await self._async_collect(client)
-            finally:
-                await http_client.aclose()
+        if not cookie:
+            # Entries created before session auth have no cookie; reauth collects one.
+            raise ConfigEntryAuthFailed("No browser session stored")
 
-        async with UWClient(
-            email=self._entry.data[CONF_EMAIL],
-            password=self._entry.data[CONF_PASSWORD],
-            http_client=get_async_client(self.hass),
-        ) as client:
-            await client.login()
-            return await self._async_collect(client)
+        # Session clients need their own cookie jar; the shared HA client must
+        # not carry one account's cookies for every entry.
+        http_client = create_async_httpx_client(self.hass, auto_cleanup=False)
+        user_agent = self._entry.data.get(CONF_USER_AGENT)
+        if user_agent:
+            http_client.headers["User-Agent"] = user_agent
+        try:
+            async with UWClient.from_session(cookie, http_client=http_client) as client:
+                return await self._async_collect(client)
+        finally:
+            await http_client.aclose()
 
     async def _async_collect(self, client: Any) -> dict[str, Any]:
         data: dict[str, Any] = {}
