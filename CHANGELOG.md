@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/KRoperUK/uw-hass/compare/v0.4.0...v1.0.0) (2026-11-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* password authentication and the email/password config step are removed. Existing password entries must be reauthenticated with a browser session.
+
+### Features
+
+* sign in with a browser session only ([4137da6](https://github.com/KRoperUK/uw-hass/commit/4137da64b2c1e6a4377b596d8927a38c0d026b5d))
+
 ## [0.4.0](https://github.com/KRoperUK/uw-hass/compare/v0.3.2...v0.4.0) (2026-11-23)
 
 
