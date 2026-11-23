@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/KRoperUK/uw-hass/compare/v0.3.0...v0.3.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* degrade softly when the browser session expires ([9f70a73](https://github.com/KRoperUK/uw-hass/commit/9f70a7317e048ed03114536785a16f297fb2b4be))
+* degrade softly when the browser session expires ([c227ec1](https://github.com/KRoperUK/uw-hass/commit/c227ec1612bfe4ca8aab2c941233efe6b9437465))
+
 ## [0.3.0](https://github.com/KRoperUK/uw-hass/compare/v0.2.1...v0.3.0) (2026-11-23)
 
 
