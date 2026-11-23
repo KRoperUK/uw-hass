@@ -17,6 +17,7 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from custom_components.utility_warehouse.const import (
     AVAILABILITY_GRACE_SECONDS,
+    CONF_USER_AGENT,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     MAX_SCAN_INTERVAL,
@@ -27,6 +28,7 @@ from custom_components.utility_warehouse.coordinator import UWDataUpdateCoordina
 from .conftest import ACCOUNT_NUMBER, fake_client_class
 
 COORDINATOR = "custom_components.utility_warehouse.coordinator"
+USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/158.0.0.0"
 
 
 def _build(hass: Any, entry: Any) -> UWDataUpdateCoordinator:
@@ -34,33 +36,23 @@ def _build(hass: Any, entry: Any) -> UWDataUpdateCoordinator:
 
 
 @contextmanager
-def _patched(client_class: type) -> Iterator[None]:
-    """Patch the HTTP client and the uw_api client used by the coordinator."""
+def _patched_session(client_class: type, http_client: Any | None = None) -> Iterator[Any]:
+    """Patch the dedicated cookie-jar client used for session auth."""
+    client = http_client if http_client is not None else MagicMock()
+    client.headers = {}
+    client.aclose = AsyncMock()
     with (
-        patch(f"{COORDINATOR}.get_async_client", return_value=MagicMock()),
+        patch(f"{COORDINATOR}.create_async_httpx_client", return_value=client),
         patch("uw_api.UWClient", client_class),
     ):
-        yield
-
-
-@contextmanager
-def _patched_session(client_class: type) -> Iterator[None]:
-    """Patch the dedicated cookie-jar client used in session mode."""
-    http_client = MagicMock()
-    http_client.aclose = AsyncMock()
-    with (
-        patch(f"{COORDINATOR}.create_async_httpx_client", return_value=http_client),
-        patch(f"{COORDINATOR}.get_async_client"),
-        patch("uw_api.UWClient", client_class),
-    ):
-        yield
+        yield client
 
 
 async def test_update_data_success(hass, mock_entry):
     """A happy-path refresh returns the assembled payload."""
     coordinator = _build(hass, mock_entry)
 
-    with _patched(fake_client_class()):
+    with _patched_session(fake_client_class()):
         data = await coordinator._async_update_data()
 
     assert data["account"].account_number == ACCOUNT_NUMBER
@@ -70,30 +62,50 @@ async def test_update_data_success(hass, mock_entry):
 
 
 async def test_update_data_auth_error_raises_config_entry_auth_failed(hass, mock_entry):
-    """A failed login is reported as an auth failure."""
+    """A rejected session is reported as an auth failure."""
     coordinator = _build(hass, mock_entry)
 
     with (
-        _patched(fake_client_class(login_error=uw_api.UWAuthError("login failed"))),
+        _patched_session(fake_client_class(account_error=uw_api.UWAuthError("rejected"))),
         pytest.raises(ConfigEntryAuthFailed),
     ):
         await coordinator._async_update_data()
 
 
-async def test_update_data_session_expiry_raises_update_failed_and_reports_repair(
-    hass, mock_session_entry
-):
+async def test_missing_cookie_raises_config_entry_auth_failed(hass, mock_entry):
+    """Entries created before session auth prompt for reauthentication."""
+    mock_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_entry, data={"email": "old@example.com", "password": "hunter2"}
+    )
+    coordinator = _build(hass, mock_entry)
+
+    with pytest.raises(ConfigEntryAuthFailed):
+        await coordinator._async_update_data()
+
+
+async def test_user_agent_is_applied(hass, mock_entry):
+    """A stored browser user agent is sent with forbidden-by-WAF requests."""
+    mock_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_entry, data={**mock_entry.data, CONF_USER_AGENT: USER_AGENT}
+    )
+    coordinator = _build(hass, mock_entry)
+
+    with _patched_session(fake_client_class()) as http_client:
+        await coordinator._async_update_data()
+
+    assert http_client.headers["User-Agent"] == USER_AGENT
+
+
+async def test_update_data_session_expiry_raises_update_failed_and_reports_repair(hass, mock_entry):
     """An expired session degrades softly and raises a repairable issue."""
-    coordinator = _build(hass, mock_session_entry)
-    http_client = MagicMock()
-    http_client.aclose = AsyncMock()
+    coordinator = _build(hass, mock_entry)
 
     with (
-        patch(f"{COORDINATOR}.create_async_httpx_client", return_value=http_client),
-        patch(
-            "uw_api.UWClient",
-            fake_client_class(account_error=uw_api.UWSessionExpiredError("expired")),
-        ),
+        _patched_session(
+            fake_client_class(account_error=uw_api.UWSessionExpiredError("expired"))
+        ) as http_client,
         pytest.raises(UpdateFailed),
     ):
         await coordinator._async_update_data()
@@ -101,53 +113,40 @@ async def test_update_data_session_expiry_raises_update_failed_and_reports_repai
     http_client.aclose.assert_awaited_once()
     assert coordinator._current_interval == DEFAULT_SCAN_INTERVAL * 2
 
-    issue = ir.async_get(hass).async_get_issue(
-        DOMAIN, session_issue_id(mock_session_entry.entry_id)
-    )
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, session_issue_id(mock_entry.entry_id))
     assert issue is not None
     assert issue.is_fixable
     assert issue.translation_key == "session_expired"
 
 
-async def test_successful_update_clears_session_issue(hass, mock_session_entry):
+async def test_successful_update_clears_session_issue(hass, mock_entry):
     """A successful refresh removes a stale session repair issue."""
     ir.async_create_issue(
         hass,
         DOMAIN,
-        session_issue_id(mock_session_entry.entry_id),
+        session_issue_id(mock_entry.entry_id),
         is_fixable=True,
         is_persistent=True,
         severity=ir.IssueSeverity.WARNING,
         translation_key="session_expired",
-        data={"entry_id": mock_session_entry.entry_id},
+        data={"entry_id": mock_entry.entry_id},
     )
-    coordinator = _build(hass, mock_session_entry)
+    coordinator = _build(hass, mock_entry)
 
     with _patched_session(fake_client_class()):
         await coordinator._async_update_data()
 
-    assert (
-        ir.async_get(hass).async_get_issue(DOMAIN, session_issue_id(mock_session_entry.entry_id))
-        is None
-    )
+    assert ir.async_get(hass).async_get_issue(DOMAIN, session_issue_id(mock_entry.entry_id)) is None
 
 
-async def test_update_data_session_mode_uses_cookie_client(hass, mock_session_entry):
-    """A session entry builds a cookie client and never logs in."""
-    coordinator = _build(hass, mock_session_entry)
-    http_client = MagicMock()
-    http_client.aclose = AsyncMock()
-    client_class = fake_client_class()
+async def test_update_data_uses_a_dedicated_cookie_client(hass, mock_entry):
+    """The coordinator never touches the shared HA client for session auth."""
+    coordinator = _build(hass, mock_entry)
 
-    with (
-        patch(f"{COORDINATOR}.create_async_httpx_client", return_value=http_client),
-        patch(f"{COORDINATOR}.get_async_client") as shared_client,
-        patch("uw_api.UWClient", client_class),
-    ):
+    with _patched_session(fake_client_class()) as http_client:
         data = await coordinator._async_update_data()
 
     assert data["account"].account_number == ACCOUNT_NUMBER
-    shared_client.assert_not_called()
     http_client.aclose.assert_awaited_once()
 
 
@@ -156,7 +155,7 @@ async def test_update_data_failure_raises_update_failed_and_backs_off(hass, mock
     coordinator = _build(hass, mock_entry)
 
     with (
-        _patched(fake_client_class(login_error=RuntimeError("socket down"))),
+        _patched_session(fake_client_class(account_error=RuntimeError("socket down"))),
         pytest.raises(UpdateFailed),
     ):
         await coordinator._async_update_data()
@@ -176,7 +175,7 @@ async def test_update_data_survives_partial_field_failures(hass, mock_entry):
         "get_bills",
     }
 
-    with _patched(fake_client_class(fail_fields=failing)):
+    with _patched_session(fake_client_class(fail_fields=failing)):
         data = await coordinator._async_update_data()
 
     assert data["account"].account_number == ACCOUNT_NUMBER

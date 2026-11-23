@@ -108,10 +108,8 @@ class FakeUWClient:
         self,
         data: dict[str, Any] | None = None,
         fail_fields: set[str] | None = None,
-        login_error: Exception | None = None,
         account_error: Exception | None = None,
     ) -> None:
-        self._login_error = login_error
         self.gql = FakeGql(
             data if data is not None else make_uw_data(),
             fail_fields or set(),
@@ -128,16 +126,11 @@ class FakeUWClient:
     async def __aexit__(self, *exc_info: object) -> bool:
         return False
 
-    async def login(self) -> None:
-        if self._login_error is not None:
-            raise self._login_error
-
 
 def fake_client_class(
     *,
     data: dict[str, Any] | None = None,
     fail_fields: set[str] | None = None,
-    login_error: Exception | None = None,
     account_error: Exception | None = None,
 ) -> type[FakeUWClient]:
     """Return a ``UWClient`` replacement pre-configured for a test."""
@@ -147,7 +140,6 @@ def fake_client_class(
             super().__init__(
                 data=data,
                 fail_fields=fail_fields,
-                login_error=login_error,
                 account_error=account_error,
             )
 
@@ -160,17 +152,6 @@ def fake_client_class(
 
 @pytest.fixture
 def mock_entry() -> MockConfigEntry:
-    """Return a mock config entry."""
-    return MockConfigEntry(
-        domain=DOMAIN,
-        data={"email": EMAIL, "password": PASSWORD},
-        unique_id=EMAIL,
-        title=f"UW - {EMAIL}",
-    )
-
-
-@pytest.fixture
-def mock_session_entry() -> MockConfigEntry:
     """Return a config entry backed by a browser session."""
     return MockConfigEntry(
         domain=DOMAIN,
