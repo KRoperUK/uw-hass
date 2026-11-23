@@ -3,10 +3,31 @@
     "step": {
       "user": {
         "title": "Utility Warehouse",
-        "description": "Enter your Utility Warehouse account credentials to access energy usage, bills, and meter readings.",
+        "menu_options": {
+          "session": "Sign in with a browser session (recommended)",
+          "credentials": "Sign in with email and password"
+        }
+      },
+      "session": {
+        "title": "Browser session",
+        "description": "Sign in at myaccount.uw.co.uk, open your browser's developer tools, copy the `Cookie:` request header for that site, and paste it here. The session lasts about a month.",
+        "data": {
+          "session_cookie": "Cookie header"
+        }
+      },
+      "credentials": {
+        "title": "Utility Warehouse",
+        "description": "Enter your Utility Warehouse account credentials to access energy usage, bills, and meter readings. Password sign-in does not currently work, because the portal requires a browser check that Home Assistant cannot complete — use a browser session instead.",
         "data": {
           "email": "Email or account number",
           "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Refresh the Utility Warehouse session",
+        "description": "The saved browser session for {account} has expired. Sign in again at myaccount.uw.co.uk and paste a fresh `Cookie:` header.",
+        "data": {
+          "session_cookie": "Cookie header"
         }
       }
     },
@@ -16,7 +37,8 @@
       "unknown": "An unexpected error occurred."
     },
     "abort": {
-      "already_configured": "This account is already configured."
+      "already_configured": "This account is already configured.",
+      "reauth_successful": "The Utility Warehouse session was updated."
     }
   },
   "entity": {

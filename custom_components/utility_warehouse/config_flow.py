@@ -1,29 +1,99 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
-from homeassistant.helpers.httpx_client import get_async_client
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.httpx_client import create_async_httpx_client, get_async_client
 
-from .const import DOMAIN
+from .const import CONF_SESSION_COOKIE, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-STEP_USER_DATA_SCHEMA = vol.Schema(
+STEP_CREDENTIALS_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_EMAIL): str,
         vol.Required(CONF_PASSWORD): str,
     }
 )
 
+STEP_SESSION_DATA_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_SESSION_COOKIE): str,
+    }
+)
+
+
+async def _async_validate_session(hass: HomeAssistant, cookie_string: str) -> Any:
+    from uw_api import UWClient
+
+    http_client = create_async_httpx_client(hass, auto_cleanup=False)
+    try:
+        async with UWClient.from_session(cookie_string, http_client=http_client) as client:
+            return await client.gql.get_account()
+    finally:
+        await http_client.aclose()
+
 
 class UWConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return self.async_show_menu(
+            step_id="user",
+            menu_options=["session", "credentials"],
+        )
+
+    async def async_step_session(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            cookie_string = user_input[CONF_SESSION_COOKIE].strip()
+            try:
+                from uw_api import UWAuthError, UWSessionExpiredError
+
+                account = await _async_validate_session(self.hass, cookie_string)
+            except ImportError:
+                _LOGGER.exception("uw-api library not installed")
+                errors["base"] = "connection_error"
+            except (UWAuthError, UWSessionExpiredError) as err:
+                _LOGGER.warning("Utility Warehouse session rejected: %s", err)
+                errors["base"] = "auth_error"
+            except OSError as err:
+                _LOGGER.info(
+                    "Utility Warehouse session check failed: connection problem (%s)",
+                    type(err).__name__,
+                )
+                errors["base"] = "connection_error"
+            except Exception:
+                _LOGGER.exception("Unexpected error checking the browser session")
+                errors["base"] = "connection_error"
+            else:
+                await self.async_set_unique_id(account.account_number)
+                self._abort_if_unique_id_configured()
+                return self.async_create_entry(
+                    title=f"UW - {account.account_number}",
+                    data={
+                        CONF_SESSION_COOKIE: cookie_string,
+                        "account_number": account.account_number,
+                    },
+                )
+
+        return self.async_show_form(
+            step_id="session",
+            data_schema=STEP_SESSION_DATA_SCHEMA,
+            errors=errors,
+        )
+
+    async def async_step_credentials(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -86,7 +156,50 @@ class UWConfigFlow(ConfigFlow, domain=DOMAIN):
                 )
 
         return self.async_show_form(
-            step_id="user",
-            data_schema=STEP_USER_DATA_SCHEMA,
+            step_id="credentials",
+            data_schema=STEP_CREDENTIALS_DATA_SCHEMA,
             errors=errors,
+        )
+
+    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+        entry = self._get_reauth_entry()
+
+        if user_input is not None:
+            cookie_string = user_input[CONF_SESSION_COOKIE].strip()
+            try:
+                from uw_api import UWAuthError, UWSessionExpiredError
+
+                account = await _async_validate_session(self.hass, cookie_string)
+            except ImportError:
+                _LOGGER.exception("uw-api library not installed")
+                errors["base"] = "connection_error"
+            except (UWAuthError, UWSessionExpiredError) as err:
+                _LOGGER.warning("Utility Warehouse session rejected: %s", err)
+                errors["base"] = "auth_error"
+            except Exception:
+                _LOGGER.exception("Unexpected error checking the browser session")
+                errors["base"] = "connection_error"
+            else:
+                self.hass.config_entries.async_update_entry(
+                    entry,
+                    title=f"UW - {account.account_number}",
+                    data={
+                        **entry.data,
+                        CONF_SESSION_COOKIE: cookie_string,
+                        "account_number": account.account_number,
+                    },
+                )
+                return self.async_abort(reason="reauth_successful")
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=STEP_SESSION_DATA_SCHEMA,
+            errors=errors,
+            description_placeholders={"account": entry.title},
         )

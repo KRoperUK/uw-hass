@@ -8,6 +8,7 @@ VERSION = "0.2.1"  # x-release-please-version
 
 CONF_EMAIL = "email"
 CONF_PASSWORD = "password"
+CONF_SESSION_COOKIE = "session_cookie"
 
 DEFAULT_SCAN_INTERVAL = 3600  # 1 hour
 MIN_SCAN_INTERVAL = 900  # 15 minutes

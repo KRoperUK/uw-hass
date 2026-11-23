@@ -24,9 +24,30 @@ Add this repository as a custom repository in HACS.
 
 ## Configuration
 
-1. Settings → Devices & Services → Add Integration → Utility Warehouse
-2. Enter your email/account number and password
-3. Credentials are validated against the UW portal
+### Browser session (recommended)
+
+The UW portal completes a browser-only device check after the password is
+entered, so Home Assistant cannot sign in with a password. It can, however,
+reuse a session you already created in your browser.
+
+1. Sign in at <https://myaccount.uw.co.uk> in any browser.
+2. Open the developer tools (F12) → **Network**, reload the page, click the
+   first request to `myaccount.uw.co.uk`, and copy the whole `Cookie` request
+   header. In Chrome/Edge: right-click the request → **Copy** →
+   **Copy as cURL**, then take the value after `-H 'cookie: '`. In Firefox:
+   **Copy Value** on the `Cookie` header.
+3. Settings → Devices & Services → Add Integration → Utility Warehouse →
+   **Sign in with a browser session**, and paste the header.
+
+The session lasts about a month. When it expires the integration asks to be
+reauthenticated and you paste a fresh header — no reinstall needed.
+
+### Email and password
+
+The option is still offered, but password sign-in currently fails: the portal
+accepts the password and then rejects the request because its browser device
+check cannot run in Home Assistant. Use a browser session instead.
+
 
 ## Sensors
 
@@ -57,16 +78,17 @@ Add this repository as a custom repository in HACS.
 
 ## Troubleshooting
 
-`auth_error` during setup means the UW portal rejected the credentials.
-Check the log for the stage that failed (`login` vs `account fetch`):
+`auth_error` during browser-session setup means the pasted header was rejected.
+Check that you copied the `Cookie` **request** header from `myaccount.uw.co.uk`
+while signed in, and that it still contains `_csrf` and `uw-user-session`.
 
-- Use the email address you log into the UW website with, not just the
-  account number, and confirm that password still works on the website.
-- `connection_error` (including rate limiting) is transient: wait a few
-  minutes and retry.
-- If it persists, enable debug logging and include the
-  `custom_components.utility_warehouse` lines (they never contain your
-  password) when reporting an issue:
+If the integration has been running and starts failing, the session has expired:
+reauthenticate the entry with a fresh header.
+
+`connection_error` (including rate limiting) is transient: wait a few minutes
+and retry. If it persists, enable debug logging and include the
+`custom_components.utility_warehouse` lines (they never contain your
+password or cookies) when reporting an issue:
 
 ```yaml
 logger:
