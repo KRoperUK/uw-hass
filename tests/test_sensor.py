@@ -101,6 +101,18 @@ def test_sensor_stays_available_when_other_resource_failed(mock_entry):
     assert sensor.available is True
 
 
+def test_sensor_available_without_resource_tracking(mock_entry):
+    """Old coordinator doubles without resource_available still work."""
+    coordinator = MagicMock()
+    coordinator.data = make_uw_data()
+    coordinator.available = True
+    del coordinator.resource_available
+    sensor = UWSensor(coordinator, mock_entry, "tariff_name", SENSOR_TYPES["tariff_name"])
+    assert sensor.available is True
+    coordinator.available = False
+    assert sensor.available is False
+
+
 def test_unique_id_and_device_info(mock_entry):
     """Entities are namespaced by entry unique id and share device info."""
     sensor = _build(mock_entry, "tariff_name", make_uw_data())

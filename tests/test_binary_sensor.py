@@ -108,6 +108,18 @@ def test_binary_sensor_unavailable_when_its_resource_failed(mock_entry):
     assert _build(mock_entry, "bill_overdue", make_uw_data(), failed={"tariff"}).available is True
 
 
+def test_binary_sensor_available_without_resource_tracking(mock_entry):
+    """Old coordinator doubles without resource_available still work."""
+    coordinator = MagicMock()
+    coordinator.data = make_uw_data()
+    coordinator.available = True
+    del coordinator.resource_available
+    sensor = UWBinarySensor(
+        coordinator, mock_entry, "bill_overdue", BINARY_SENSOR_TYPES["bill_overdue"]
+    )
+    assert sensor.available is True
+
+
 def test_unique_id_and_device_class(mock_entry):
     sensor = _build(mock_entry, "bill_overdue", make_uw_data())
 
