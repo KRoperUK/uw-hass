@@ -23,6 +23,12 @@ BINARY_SENSOR_TYPES: dict[str, dict[str, Any]] = {
     },
 }
 
+# Coordinator resource keys backing each binary sensor.
+BINARY_SENSOR_RESOURCES: dict[str, tuple[str, ...]] = {
+    "bill_overdue": ("bills",),
+    "smart_meter": ("meters",),
+}
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -63,7 +69,11 @@ class UWBinarySensor(CoordinatorEntity[UWDataUpdateCoordinator], BinarySensorEnt
 
     @property
     def available(self) -> bool:
-        return self.coordinator.available
+        resources = BINARY_SENSOR_RESOURCES.get(self._sensor_id, ())
+        resource_available = getattr(self.coordinator, "resource_available", None)
+        if resource_available is None:
+            return self.coordinator.available
+        return self.coordinator.available and resource_available(*resources)
 
     @property
     def is_on(self) -> bool | None:

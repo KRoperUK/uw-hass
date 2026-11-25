@@ -164,7 +164,22 @@ async def test_update_data_failure_raises_update_failed_and_backs_off(hass, mock
 
 
 async def test_update_data_survives_partial_field_failures(hass, mock_entry):
-    """Optional resources failing individually do not fail the refresh."""
+    """Some optional resources failing does not fail the refresh."""
+    coordinator = _build(hass, mock_entry)
+    failing = {"get_balance", "get_bills"}
+
+    with _patched_session(fake_client_class(fail_fields=failing)):
+        data = await coordinator._async_update_data()
+
+    assert data["account"].account_number == ACCOUNT_NUMBER
+    assert data["tariff"] is not None
+    for key in ("balance", "bills"):
+        assert key not in data
+    assert coordinator.failed_resources == {"balance", "bills"}
+
+
+async def test_update_data_all_fields_failing_raises_update_failed(hass, mock_entry):
+    """Every optional resource failing fails the refresh, not silently."""
     coordinator = _build(hass, mock_entry)
     failing = {
         "get_balance",
@@ -175,12 +190,11 @@ async def test_update_data_survives_partial_field_failures(hass, mock_entry):
         "get_bills",
     }
 
-    with _patched_session(fake_client_class(fail_fields=failing)):
-        data = await coordinator._async_update_data()
-
-    assert data["account"].account_number == ACCOUNT_NUMBER
-    for key in ("balance", "tariff", "consumption", "meters", "readings", "bills"):
-        assert key not in data
+    with (
+        _patched_session(fake_client_class(fail_fields=failing)),
+        pytest.raises(UpdateFailed),
+    ):
+        await coordinator._async_update_data()
 
 
 def test_available_when_last_update_succeeded(hass, mock_entry):

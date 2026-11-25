@@ -15,16 +15,27 @@ from custom_components.utility_warehouse.binary_sensor import (
 from .conftest import make_uw_data
 
 
-def _coordinator(data: Any, available: bool = True) -> MagicMock:
+def _coordinator(data: Any, available: bool = True, failed: set[str] | None = None) -> MagicMock:
     coordinator = MagicMock()
     coordinator.data = data
     coordinator.available = available
+    failed_resources = failed or set()
+    coordinator.resource_available = lambda *keys: not failed_resources.intersection(keys)
     return coordinator
 
 
-def _build(entry: Any, sensor_id: str, data: Any, available: bool = True) -> UWBinarySensor:
+def _build(
+    entry: Any,
+    sensor_id: str,
+    data: Any,
+    available: bool = True,
+    failed: set[str] | None = None,
+) -> UWBinarySensor:
     return UWBinarySensor(
-        _coordinator(data, available), entry, sensor_id, BINARY_SENSOR_TYPES[sensor_id]
+        _coordinator(data, available, failed),
+        entry,
+        sensor_id,
+        BINARY_SENSOR_TYPES[sensor_id],
     )
 
 
@@ -90,6 +101,11 @@ def test_unknown_sensor_id_returns_none(mock_entry):
 def test_available_delegates_to_coordinator(mock_entry):
     assert _build(mock_entry, "bill_overdue", make_uw_data(), available=False).available is False
     assert _build(mock_entry, "bill_overdue", make_uw_data(), available=True).available is True
+
+
+def test_binary_sensor_unavailable_when_its_resource_failed(mock_entry):
+    assert _build(mock_entry, "bill_overdue", make_uw_data(), failed={"bills"}).available is False
+    assert _build(mock_entry, "bill_overdue", make_uw_data(), failed={"tariff"}).available is True
 
 
 def test_unique_id_and_device_class(mock_entry):

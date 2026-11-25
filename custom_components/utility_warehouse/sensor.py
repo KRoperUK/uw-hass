@@ -78,6 +78,26 @@ SENSOR_TYPES: dict[str, dict[str, Any]] = {
 SUGGESTED_DISPLAY_PRECISION = 2
 PRECISION_UNITS = {"GBP", "p/kWh", "p/day"}
 
+# Coordinator resource keys backing each sensor. A sensor reports unavailable
+# when any of its resources failed on the last refresh.
+SENSOR_RESOURCES: dict[str, tuple[str, ...]] = {
+    "electricity_consumption": ("consumption",),
+    "electricity_cost": ("consumption",),
+    "gas_consumption": ("consumption",),
+    "gas_cost": ("consumption",),
+    "electricity_meter_reading": ("meters", "readings"),
+    "gas_meter_reading": ("meters", "readings"),
+    "last_reading_date": ("meters",),
+    "electricity_meter_number": ("meters",),
+    "gas_meter_number": ("meters",),
+    "tariff_name": ("tariff",),
+    "unit_rate": ("tariff",),
+    "standing_charge": ("tariff",),
+    "last_bill_amount": ("bills",),
+    "last_bill_date": ("bills",),
+    "bill_status": ("bills",),
+}
+
 
 def latest_bill(bills: list[Any]) -> Any | None:
     """Return the most recent bill by date, whatever order the API used."""
@@ -142,7 +162,11 @@ class UWSensor(CoordinatorEntity[UWDataUpdateCoordinator], SensorEntity):
 
     @property
     def available(self) -> bool:
-        return self.coordinator.available
+        resources = SENSOR_RESOURCES.get(self._sensor_id, ())
+        resource_available = getattr(self.coordinator, "resource_available", None)
+        if resource_available is None:
+            return self.coordinator.available
+        return self.coordinator.available and resource_available(*resources)
 
     @property
     def native_value(self) -> Any:
