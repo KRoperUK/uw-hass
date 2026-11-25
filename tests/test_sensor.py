@@ -35,15 +35,25 @@ EXPECTED_VALUES: dict[str, Any] = {
 }
 
 
-def _coordinator(data: Any, available: bool = True) -> MagicMock:
+def _coordinator(data: Any, available: bool = True, failed: set[str] | None = None) -> MagicMock:
     coordinator = MagicMock()
     coordinator.data = data
     coordinator.available = available
+    failed_resources = failed or set()
+    coordinator.resource_available = lambda *keys: not failed_resources.intersection(keys)
     return coordinator
 
 
-def _build(entry: Any, sensor_id: str, data: Any, available: bool = True) -> UWSensor:
-    return UWSensor(_coordinator(data, available), entry, sensor_id, SENSOR_TYPES[sensor_id])
+def _build(
+    entry: Any,
+    sensor_id: str,
+    data: Any,
+    available: bool = True,
+    failed: set[str] | None = None,
+) -> UWSensor:
+    return UWSensor(
+        _coordinator(data, available, failed), entry, sensor_id, SENSOR_TYPES[sensor_id]
+    )
 
 
 def test_expected_values_cover_every_sensor_type():
@@ -77,6 +87,18 @@ def test_available_delegates_to_coordinator(mock_entry):
     """Availability mirrors the coordinator."""
     assert _build(mock_entry, "tariff_name", make_uw_data(), available=False).available is False
     assert _build(mock_entry, "tariff_name", make_uw_data(), available=True).available is True
+
+
+def test_sensor_unavailable_when_its_resource_failed(mock_entry):
+    """A failed tariff fetch marks tariff sensors unavailable, not stale."""
+    sensor = _build(mock_entry, "tariff_name", make_uw_data(), failed={"tariff"})
+    assert sensor.available is False
+
+
+def test_sensor_stays_available_when_other_resource_failed(mock_entry):
+    """A failed bills fetch does not take tariff sensors down with it."""
+    sensor = _build(mock_entry, "tariff_name", make_uw_data(), failed={"bills"})
+    assert sensor.available is True
 
 
 def test_unique_id_and_device_info(mock_entry):

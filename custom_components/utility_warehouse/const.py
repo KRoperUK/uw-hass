@@ -13,7 +13,7 @@ DEFAULT_SCAN_INTERVAL = 3600  # 1 hour
 MIN_SCAN_INTERVAL = 900  # 15 minutes
 MAX_SCAN_INTERVAL = 86400  # 24 hours
 
-AVAILABILITY_GRACE_SECONDS = 7200  # 2 hours
+AVAILABILITY_GRACE_SECONDS = 3600  # 1 hour (one missed hourly poll)
 
 
 def session_issue_id(entry_id: str) -> str:

@@ -42,6 +42,9 @@ class UWDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._entry = entry
         self._last_success_time: float = 0.0
         self._current_interval = scan_seconds
+        # Resource keys (see _async_collect) whose last fetch failed. Entities
+        # for these resources report unavailable instead of showing old data.
+        self.failed_resources: set[str] = set()
 
     def _apply_backoff(self) -> None:
         self._current_interval = min(self._current_interval * 2, MAX_SCAN_INTERVAL)
@@ -125,11 +128,16 @@ class UWDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         finally:
             await http_client.aclose()
 
+    def resource_available(self, *keys: str) -> bool:
+        """Return True when none of the given resource keys last failed."""
+        return not self.failed_resources.intersection(keys)
+
     async def _async_collect(self, client: Any) -> dict[str, Any]:
         data: dict[str, Any] = {}
 
         data["account"] = await client.gql.get_account()
 
+        failed: set[str] = set()
         for key, method in (
             ("balance", client.gql.get_balance),
             ("tariff", client.gql.get_tariff),
@@ -142,5 +150,12 @@ class UWDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 data[key] = await method()
             except Exception as exc:
                 _LOGGER.warning("Failed to fetch %s: %s", key, exc)
+                failed.add(key)
+
+        self.failed_resources = failed
+        if len(failed) == 6:
+            # Nothing optional came back: report failure so the refresh is
+            # retried and entities go unavailable instead of looking fresh.
+            raise UpdateFailed("All Utility Warehouse data fetches failed")
 
         return data
