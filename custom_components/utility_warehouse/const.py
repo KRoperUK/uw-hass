@@ -4,7 +4,7 @@ from typing import Final
 
 DOMAIN = "utility_warehouse"
 NAME = "Utility Warehouse"
-VERSION = "1.0.0"  # x-release-please-version
+VERSION = "1.0.1"  # x-release-please-version
 
 CONF_SESSION_COOKIE = "session_cookie"
 CONF_USER_AGENT = "user_agent"

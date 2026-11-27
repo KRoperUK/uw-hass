@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.1](https://github.com/KRoperUK/uw-hass/compare/v1.0.0...v1.0.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* per-resource availability, all-failed raises, 1h grace ([e5ae944](https://github.com/KRoperUK/uw-hass/commit/e5ae9448ef791948f90b7bc105565d799b486486))
+* per-resource availability, fail loudly when all fetches fail, 1h grace ([eb489d4](https://github.com/KRoperUK/uw-hass/commit/eb489d4570486834781150e19faa36de37e3cce6))
+
 ## [1.0.0](https://github.com/KRoperUK/uw-hass/compare/v0.4.0...v1.0.0) (2026-11-23)
 
 
